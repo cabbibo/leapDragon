@@ -1,0 +1,817 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>CABBIBO</title>
+</head
+
+><body>
+	<h1><div id="title">Score:</div><div id="score"></div></h1>
+
+
+	<!-- Container for THREE rendering -->
+	<div id="container"></div>
+
+
+
+<!-- JQUERY-->
+	<script src="../lib/jquery-1.7.1.min.js"></script>
+
+<!-- Leap Build. Using unminified for now, but sure to chose minified for production -->
+	<script src="../lib/leap.js"></script>
+
+
+<!--Three.js Build. May want to switch to unminified to have for more ready reference-->
+	<script src="../lib/three.min.js"></script>
+    
+    <!-- Stats for Three -->
+	<script src="../lib/stats.min.js"></script>
+    
+<!-- AUDIO -->
+	<script src="lib/audio.js"></script>
+    <script src="lib/BufferLoader.js"></script>
+    
+    
+<!-- CSS, just to keep this page less cluttered -->
+	<link href="lib/main.css" type="text/css"  rel="stylesheet"/>
+    
+      
+<!-- Pulling in Math script, mostly just for polar coordinates -->
+	<script src="lib/math.js"></script>
+    
+<!-- SCRIPT for THREE.init -->
+	<script src="lib/init.js"></script>
+      
+<!-- Setting up all the 'Master Objects' in seperate File  -->
+	<script src = "lib/master.js"></script>
+    
+<!-- JS for effects -->
+	<script src="lib/effects.js"></script>   
+ 
+<!-- Creating a keystroke.js, right now just for debugging -->
+	<script src="lib/keyStrokes.js"></script>
+    
+    
+<!-- Adding some gesture magic -->
+	<script src="lib/gestures.js"></script>
+
+
+<!-- Where the magic happens! -->
+<script>
+
+
+
+
+
+
+
+
+//Array which will hold pointables
+var pointableArray = []
+
+var foodGeometry = new THREE.CubeGeometry(20,20,20)
+
+var frameGeometry = new THREE.CubeGeometry(20,20,20)
+
+
+var frameLight = new THREE.PointLight(0x0000ff,3,100)
+scene.add(frameLight)
+
+
+
+
+
+//This is the 'scene' that our mesh will lie within
+var rotatable = new THREE.Object3D()
+scene.add(rotatable)
+		
+		
+scene.add(TUBE)
+scene.add(INNERPARTICLES)
+scene.add(hitParticles)
+console.log(scene)
+		
+		
+//an array to hold all the hitables 
+hitables=[]
+
+//an array to hold all the frames, in leap Lan
+oldFrames = []
+
+//an array to hold the frame markers, AKA the tail
+frameMarkers = []
+
+//Start with 1 frame to keep, and increase as you eat more food
+numberOfFramesToKeep = 1
+
+
+//Adds the first framemarker to the scene
+frameMarkers[0] = new THREE.Object3D()
+
+//adding leap geometry
+var geometry = new THREE.SphereGeometry(5,10,10)
+var dataGeo = new THREE.SphereGeometry(5,10,10)
+
+frameMarkers[0].data = dataGeo
+console.log(frameMarkers[0].data)
+
+var redMaterial = loadImgMaterial("img/hitables/11.png")
+for(var i = 0; i<10; i++){
+	var sphere = new THREE.Mesh( geometry, redMaterial)
+	
+	var newPos = MATH.toCart(10, 2*Math.PI *(i/10),0)
+	
+	sphere.position.x = newPos.z
+	sphere.position.y = newPos.x
+	sphere.position.z = newPos.y
+	
+	
+	sphere.rotation.z = 2*Math.PI *(i/10)
+	frameMarkers[0].add(sphere)
+}
+
+scene.add(frameMarkers[0])
+
+
+//global frame objects
+var FRAME
+var OFRAME
+
+//LEAP LOOP
+Leap.loop({enableGestures: true},function(frame) {
+  OFRAME = FRAME
+  FRAME = frame
+  
+  
+  if(alive == true){
+		  //Making sure the right frames are added at the beginning
+		  if(!oldFrames[0]){
+			oldFrames[0] = frame
+		  }
+		
+		//Check to see which loops have started
+		  checkLoopsStarted();	
+		  
+		  for(var i = 0; i < oldFrames.length; i++){
+			  if(oldFrames[i].pointables[0]){
+				 var correctedPosition = correctTipPosition(oldFrames[i],0)
+				 frameMarkers[i].position.x = correctedPosition.x
+				 frameMarkers[i].position.y = correctedPosition.y
+				 frameMarkers[i].position.z = correctedPosition.z
+			  }else{
+				//Get the frame out if there are no pointables!
+				frameMarkers[i].position.x = 100000
+				frameMarkers[i].position.y = 100000
+				frameMarkers[i].position.z = 100000
+				  
+			  }
+		  }
+		  
+		  
+		  //only check hit test if there is a pointable!
+		  if(frame.pointables[0]){
+			 
+			 
+			hitTest(frame)
+		  }else{
+			frameLight.position.x =100000
+			frameLight.position.y =100000
+			frameLight.position.z =100000  
+		  }
+		  
+          if(frame.pointables.length >=4){
+            fieldSpeed *= .99 
+
+            tmpFieldSpeedHolder =0
+
+          }
+		  
+		  //Make all of the older frames equal to the frame before it
+		  for(var i=oldFrames.length-1; i>0;i--){
+			oldFrames[i] = oldFrames [i-1]  
+		  }
+		//frame
+		  
+		 checkGestures()
+		
+	
+	
+	
+	
+	 	oldFrames[0] = frame
+		
+ 		//render();
+  }
+ 
+
+ // render();
+	
+})
+
+function animate() {
+	requestAnimationFrame( animate );
+	
+	updateMasterAnalyser();
+	hitParticles.update();
+	
+	//visualize hitabvles
+	for(var i = 0 ; i < hitables.length; i++){
+		hitables[i].audio.update();	
+		hitables[i].updatePosition();
+		
+	}
+	
+	render();
+}
+
+animate();
+
+
+// Render function to be called in Leap Frame Loop
+function render() {
+	stats.update(clock)
+	//controls.update(clock
+	renderer.render( scene, camera );
+
+}
+	
+//Checks for collision with hitable	
+
+function hitTest(frame){
+	//console.log('sds')
+	for(var i = 0; i < hitables.length; i++){
+		//console.log(hitables[i])
+		var isHit = checkHit(frame, hitables[i])
+		if(isHit == true){
+			break;	
+		}
+	}
+	
+	
+	//correct the position of the frame
+	var corrected = correctTipPosition(frame,0)
+	frameLight.position.x = corrected.x
+	frameLight.position.y = corrected.y
+	frameLight.position.z = corrected.z
+	
+	
+	//var isStopped = checkTailEating(2,corrected);
+	if(frameMarkers[1]){
+		var isStopped = checkTailEating(1,corrected);
+		if(isStopped == false){
+			for(var i = 1; i < frameMarkers.length; i++){
+				
+				
+				var eaten =  checkTailEating(i,corrected)
+				
+				if(eaten == true){
+					die();	
+				}
+			}
+		}
+		
+	}
+	
+}
+
+function checkLoopsStarted(){
+	for(var i=0; i<hitables.length; i++){
+		hitables[i].checkStart();	
+		hitables[i].updatePitch();
+	}
+	
+}
+
+
+//Checks if eating own tail
+function checkTailEating(whichFrame, corrected){
+	var dif = {	
+		x:Math.abs(frameMarkers[whichFrame].position.x-corrected.x),
+		y:Math.abs(frameMarkers[whichFrame].position.y-corrected.y),
+		z:Math.abs(frameMarkers[whichFrame].position.z-corrected.z)
+	}
+
+	if(dif.x <= 20 && dif.y <= 20 && dif.z <= 20){
+		return true
+	}else{
+		return false	
+	}
+
+}
+
+
+//Death function
+function die(){
+	
+	//$("h1 #title").html("DED: dead.")
+	//score -= 1
+	//updateScore()
+		
+	//alive = false
+}
+	
+
+/*
+	
+  Adds a frame marker to the snake
+
+*/
+function addFrame(frame,hitable){
+	
+	
+	hitable.audio.gainNode.gain.value+=.1
+	
+	frameMarkers[oldFrames.length] = new THREE.Mesh( hitable.style.geometery, hitable.style.material)
+	
+	//Hacks the frame out of view so there isn't a blip at 0
+	frameMarkers[oldFrames.length].position.x = 10000
+	frameMarkers[oldFrames.length].position.y = 10000
+	frameMarkers[oldFrames.length].position.z = 10000
+	
+	scene.add(frameMarkers[oldFrames.length])
+    
+	
+	
+	oldFrames[0] = frame
+	for(var i=oldFrames.length; i>0;i--){
+		oldFrames[i] = oldFrames [i-1]  
+  	}
+	
+	hitable.getRandomPosition()
+	
+	score += 1
+	updateScore()
+	
+	
+	
+	if(rotatable.children.length == 0){
+		$("h1").html("YOU WON!!!")	
+		
+	}
+}
+
+
+/*
+
+This function checks to see if any of the 'hitables' are hit
+If they are, add a new frame
+
+*/
+
+function checkHit(frame, hitable){
+	var correctedFramePos = correctTipPosition(frame,0)
+	//console.log(correctedFramePos)
+	
+	
+	//Gets a Vector3 for the position of the hitable
+	var worldHitable =  new THREE.Vector3(hitable.scene.position.x, hitable.scene.position.y,hitable.scene.position.z)
+	
+	//Gets that same vector in the scene space(Snake exists
+	worldHitable.applyMatrix4(rotatable.matrixWorld)
+	
+	
+	dif = {	
+		x:Math.abs(worldHitable.x-correctedFramePos.x),
+		y:Math.abs(worldHitable.y-correctedFramePos.y),
+		z:Math.abs(worldHitable.z-correctedFramePos.z)
+	}
+	//console.log(dif)
+	
+	if(dif.x <= 50 && dif.y <= 50 && dif.z <= 50){
+	
+	
+		addFrame(frame,hitable)	
+		hitParticles.inUse = true
+		hitable.audio.gainNode.gain.value+=.1
+		
+		if(hitable.noise.source){
+			console.log('noos')
+			console.log(hitable.noise.source)
+			hitable.noise.gainNode.gain.value = hitable.audio.gainNode.gain.value
+			hitable.noise.play()
+			
+		}
+		
+		return true
+		//getRandomHitablePosition(hitable)
+	}else{
+		
+		return false
+			
+	}
+}
+
+
+//Corrects the tip position fed in by the leap
+function correctTipPosition(object,pointable){
+	var toReturn = {
+		x:object.pointables[pointable].tipPosition[0]*3,
+		y:(object.pointables[pointable].tipPosition[1]*3)-800,
+		z:object.pointables[pointable].tipPosition[2]*3
+	}
+	
+	return toReturn
+	
+}
+
+
+//Updates the html of the score div
+function updateScore(){
+	
+	$("#score").html(score)
+	
+}
+
+
+
+
+
+/*
+
+MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC MUSIC 
+
+
+*/
+
+var audioList =  [
+
+	"audio/iTry/schoolOfSevenBells.mp3",
+	"audio/iTry/boomClap.mp3",
+	"audio/iTry/freakFreak.mp3",
+	"audio/iTry/whatYouCanSay.mp3",
+	"audio/iTry/streetHalo.mp3",
+	"audio/iTry/tryei.mp3",
+	"audio/iTry/fluteLike_1.mp3",
+	"audio/iTry/fluteLike_2.mp3",
+	"audio/iTry/bosIndicus.mp3",
+	"audio/iTry/padJupiter.mp3",
+]
+
+var noiseList = [
+	"audio/iTry/tryNoise1.mp3",
+	"audio/iTry/tryNoise2.mp3",
+	"audio/iTry/tryNoise3.mp3",
+	"audio/iTry/tryNoise4.mp3",
+	"audio/iTry/tryNoise5.mp3",
+	"audio/iTry/tryNoise6.mp3",
+	"audio/iTry/tryNoise7.mp3",
+	"audio/iTry/tryNoise8.mp3",
+	"audio/iTry/prygon1.mp3",
+	"audio/iTry/prygon2.mp3",
+	"audio/iTry/prygon3.mp3",
+	
+	
+
+]
+
+
+style={
+	
+	schoolOfSevenBells:{
+		geometery: new THREE.IcosahedronGeometry(20,1),
+		audio:"audio/pattern/schoolOfSevenBells.mp3",
+		noise:"audio/iTry/tryNoise1.mp3",
+		data: new THREE.IcosahedronGeometry(20,1),
+		material:loadImgMaterial("img/hitables/1.png"),
+		color:0x0f20e0,
+		startScore:20,
+		endScore:150000
+		
+	},
+	
+	boomClap:{
+		audio:"audio/iTry/boomClap.mp3",
+		noise:"audio/iTry/tryNoise2.mp3",
+		geometery: new THREE.IcosahedronGeometry(20,1),
+		data: new THREE.IcosahedronGeometry(20,1),
+		material:loadImgMaterial("img/hitables/2.png"),
+		color:0x103080,
+		startScore:10,
+		endScore:150000
+		
+		
+		
+	},
+	
+	freakFreak:{
+		audio:"audio/iTry/freakFreak.mp3",
+		noise:"audio/iTry/tryNoise3.mp3",
+		geometery: new THREE.IcosahedronGeometry(20,1),
+		data: new THREE.IcosahedronGeometry(20,1),
+		material:loadImgMaterial("img/hitables/3.png"),
+		color:0x0000f0,
+		startScore:8,
+		endScore:150000
+		
+	},
+	
+	whatYouCanSay:{
+		audio:"audio/iTry/whatYouCanSay.mp3",
+		noise:"audio/iTry/prygon3.mp3",
+		geometery: new THREE.IcosahedronGeometry(20,1),
+		data: new THREE.IcosahedronGeometry(20,1),
+		material:loadImgMaterial("img/hitables/4.png"),
+		color:0xe0a0a0,
+		startScore:3,
+		endScore:150000
+		
+		
+	},
+	
+	streetHalo:{
+		audio:"audio/iTry/streetHalo.mp3",
+		noise:"audio/iTry/tryNoise5.mp3",
+		geometery: new THREE.IcosahedronGeometry(20,1),
+		data: new THREE.IcosahedronGeometry(20,1),
+		material:loadImgMaterial("img/hitables/5.png"),
+		color:0xa00a0,
+        startScore:10,
+		endScore:150000
+		
+		
+	},
+	
+	tryei:{
+		audio:"audio/iTry/tryei.mp3",
+		noise:"audio/iTry/tryNoise6.mp3",
+		geometery: new THREE.IcosahedronGeometry(20,1),
+		data: new THREE.IcosahedronGeometry(20,1),
+		material:loadImgMaterial("img/hitables/6.png"),
+		color:0xa000a0,
+		startScore:4,
+		endScore:150000
+		
+		
+	},
+	
+	fluteLike_1:{
+		audio:"audio/iTry/fluteLike_1.mp3",
+		noise:"audio/iTry/prygon2.mp3",
+		geometery: new THREE.IcosahedronGeometry(20,1),
+		data: new THREE.IcosahedronGeometry(20,1),
+		material:loadImgMaterial("img/hitables/7.png"),
+		color:0xa000a0,
+		startScore:0,
+		endScore:150000
+		
+		
+	},
+	
+	fluteLike_2:{
+		audio:"audio/iTry/fluteLike_2.mp3",
+		noise:"audio/iTry/prygon1.mp3",
+		geometery: new THREE.IcosahedronGeometry(20,1),
+		data: new THREE.IcosahedronGeometry(20,1),
+		material:loadImgMaterial("img/hitables/10.png"),
+		color:0xa000a0,
+		startScore:10,
+		endScore:150000
+		
+		
+	},
+	
+	bosIndicus:{
+		audio:"audio/iTry/bosIndicus.mp3",
+		noise:"audio/iTry/tryNoise7.mp3",
+		geometery: new THREE.IcosahedronGeometry(20,1),
+		data: new THREE.IcosahedronGeometry(20,1),
+		material:loadImgMaterial("img/hitables/9.png"),
+		color:0xa000a0,
+		startScore:25,
+		endScore:150000
+		
+		
+	},
+	
+	padJupiter:{
+		audio:"audio/iTry/padJupiter.mp3",
+		noise:"audio/iTry/tryNoise8.mp3",
+		geometery: new THREE.IcosahedronGeometry(20,1),
+		data: new THREE.IcosahedronGeometry(20,1),
+		material:loadImgMaterial("img/hitables/8.png"),
+		color:0xa000a0,
+		startScore:5,
+		endScore:150000
+		
+		
+	}
+	
+	
+	
+	
+}
+
+
+var music = new webkitAudioContext();	
+
+
+
+//Function to be called when all audio has been decoded
+//This is the function that creates all the objects
+var finishedLoading = function(){
+	
+	for(var i = 0; i < this.urlList.length; i++){
+		
+	 
+		//Parsing down the url
+		var nameNoAudio=  this.urlList[i].split('audio/iTry/');
+		var nameNoMp3 = nameNoAudio[1].split('.mp3')
+		var name = nameNoMp3[0]
+		
+		thisStyle = style[name]
+		//console.log(thisStyle)
+		//console.log(thisStyle)
+	
+		var hitable = new HITABLE (name)
+		//console.log(hitable)
+		var audio = new AUDIO(hitable,this.urlList[i],this.bufferList[i],true)
+		
+		
+		
+		hitable.audio = audio
+		
+		hitables.push(hitable)
+		
+		hitables[i].visualize = function(freqData,binCount,n){
+			//console.log(this)
+			var geo = this.mesh.geometry
+			//console.log(this.mesh)
+			for(var i = 0; i < this.mesh.geometry.vertices.length; i++){
+				if(n == i){
+					vert = this.mesh.geometry.vertices[i]
+					data = this.data.vertices[i]
+					
+					vert.x = data.x*(1+(freqData/200))
+					vert.y = data.y*(1+(freqData/200))
+					vert.z = data.z*(1+(freqData/200))
+				}
+				
+			}
+			
+			this.mesh.geometry.verticesNeedUpdate = true;
+			
+			
+			
+		}
+		
+		
+		//console.log(hitables[i])
+		hitables[i].audio.play();
+	}
+	
+	
+	//Once all the hitables have been created, 
+	//load the noise loadable list
+	noiseLoader.load()
+	
+}
+
+
+noiseFinishedLoading = function(){
+	for(var i = 0; i < this.urlList.length; i++){
+		
+		
+		var noise= new AUDIO(hitables[i],this.urlList[i],this.bufferList[i])
+		noise.gainNode.gain.value = 1
+		hitables[i].noise = noise
+		
+	
+		
+	}
+	
+}
+
+
+bufferLoader = new BufferLoader(
+	music,
+	audioList,
+	finishedLoading
+);
+
+
+bufferLoader.load()
+
+noiseLoader = new BufferLoader(
+	music,
+	noiseList,
+	noiseFinishedLoading
+)
+
+
+//Loads Image Material for THREE object
+function loadImgMaterial(file){
+ 	toReturn = new THREE.MeshLambertMaterial(
+				{
+					map: THREE.ImageUtils.loadTexture(
+					file, 
+					{}, 
+					function() {
+						
+						//TODO: ADD LOAD BAR
+						//console.log('texture loadede')
+					}),
+					//transparent:true,
+					//opacity:.8
+				
+				
+				})	
+				
+	return toReturn
+	
+}
+
+
+
+//Function which defines the hitable object
+ HITABLE = function (which){
+	
+	var thisStyle = style[which]
+	this.scene = new THREE.Object3D()
+	rotatable.add(this.scene)
+	this.style = thisStyle
+	
+	this.startScore = thisStyle.startScore
+	this.endScore = thisStyle.endScore
+	
+	
+	
+	this.mesh = new THREE.Mesh(thisStyle.geometery, thisStyle.material)
+	this.data =  thisStyle.data
+	this.light  = new THREE.PointLight(thisStyle.color,1,500)
+	
+	
+	this.scene.add(this.mesh)
+	this.scene.add(this.light)
+	
+	this.scene.position.x = -9999
+	
+	//this.getRandomPosition()
+	
+	//console.log(this)
+	
+}
+
+
+HITABLE.prototype = {
+	
+	//Gets random position for scene of the hitable
+	getRandomPosition: function(){
+		
+		var rand = {
+			x:	Math.random()*400-200,
+			y:	Math.random()*400-200,
+			z:	Math.random()*fieldDepth-200	
+		}
+		
+		this.scene.position.x = rand.x
+		this.scene.position.y = rand.y
+		this.scene.position.z = rand.z- fieldDepth
+		
+	},
+	
+	checkStart: function(){
+	
+		if(score >= this.startScore && score <= this.endScore){
+			if(this.scene.position.x == -9999){
+				this.getRandomPosition()	
+			}	
+		}else if(score > this.endScore){
+			this.scene.position.x = -9999
+		}
+	
+	},
+	
+	
+	//Updates Position, so its more like we are flying through a field
+	updatePosition:function(){
+		
+		this.scene.position.z += fieldSpeed
+		
+		if (this.scene.position.z >= fieldDepth/4){
+			this.scene.position.z -= fieldDepth
+		}else if(this.scene.position.z <= -(3*fieldDepth/4)){
+			this.scene.position.z += fieldDepth
+		}
+		
+			
+	},
+	
+	
+	updatePitch:function(){
+		this.audio.source.playbackRate.value = 1+ (fieldSpeed/100)
+		this.noise.source.playbackRate.value = 1+ (fieldSpeed/100) 
+		
+	}
+	
+	
+}
+
+
+
+
+
+
+</script>
+
+</body>
+</html>
